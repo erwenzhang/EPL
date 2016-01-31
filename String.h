@@ -111,9 +111,15 @@ private:
 		Character& operator*(void) { return ptr[-1];}
 		Same& operator++(void) {
 			--ptr;
-			return *this; // b = ++a; pre increment; ++a = 3 a left value,step 1: a increments, step 2: a = 3; so finally a = 3 ;return type& value 
+			return *this; /* b = ++a; pre increment;
+			++a = 3 a left value,
+			step 1: a increments, 
+			step 2: a = 3; so finally a = 3 ;
+			return type& value */
 		} 
-		Same operator++(int) { // b = a++; post increment ,    a++= 3 wrong, a++ right value,  
+		Same operator++(int) {
+			/* b = a++; post increment , 
+			a++= 3 wrong, a++ right value,  */
 			Same t{*this}; // make a copy
 			operator++(); // increment myself
 			return t; // return old value 
