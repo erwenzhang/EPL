@@ -1,109 +1,115 @@
 #include <iostream>
 #include <cstdint>
-#include <string>
+#include <vector>
+#include <algorithm> // for std::min
 
 using std::cout;
 using std::endl;
 
-class SmartString : public std::string {
+#define valarray valarray1
+
+template <typename T>
+class valarray : public std::vector<T> {
+	using Same = valarray<T>;
 public:
-	using std::string::string;
+	using std::vector<T>::vector;
 
-	void print(std::ostream& out) const {
-		out << (std::string const&) (*this);
+	/* change the semantics of assignment, and provide only copy assignment (no move) */
+	Same& operator=(Same const& rhs) {
+		/* don't need to protect against x = x, although it might help performance to do so */
+
+		uint64_t size = std::min(this->size(), rhs.size()); // only assign min # elems
+
+		Same& lhs{ *this }; // a convenience variable, reference to self "left hand side"
+
+		for (uint64_t k = 0; k < size; k += 1) {
+			lhs[k] = rhs[k];
+		}
+
+		return *this;
+	}
+
+	/* note: it does not make sense to change the semantics of initialization, right??? */
+
+	/* operator assignments, must be members */
+	Same& operator+=(Same const& rhs) {
+		Same& lhs{ *this };
+		return lhs = lhs + rhs; // OK, I'm disgusted by this return statement
+		/* but hey, if some dork thinks it's a good idea that operator= has a return value
+		 * and I'm forced to create a return value because of that dork, well, then I'm 
+		 * going to support that convention with dorky code ;-P   
+		 */
+	}
+
+	Same& operator-=(Same const& rhs) {
+		Same& lhs{ *this };
+		return lhs = lhs - rhs;
 	}
 };
 
-template <typename T> struct choose_ref {
-	using type = T;
-};
+template <typename T>
+valarray<T> operator+(valarray<T> const& lhs, valarray<T> const& rhs) {
+	uint64_t size = std::min(lhs.size(), rhs.size());
+	valarray<T> result(size); // need () syntax, since the result{size} looks like an initializer list
 
-//template<> struct choose_ref<SmartString> {
-//	using type = SmartString const&;
-//};
-
-template <typename T> using ChooseRef = typename choose_ref<T>::type;
-
-template <typename S1Type, typename S2Type>
-class ConcatString {
-	using LeftType = ChooseRef<S1Type>;
-	using RightType = ChooseRef<S2Type>;
-	LeftType s1;
-	RightType s2;
-public:
-	ConcatString(S1Type const& left, S2Type const& right) :
-		s1{ left }, s2(right) {}
-
-	uint64_t size(void) const { return s1.size() + s2.size(); }
-
-	char operator[](uint64_t k) const {
-		if (k < s1.size()) { return s1[k]; }
-		else { return s2[k - s1.size()]; }
+	for (uint64_t k = 0; k < size; k += 1) {
+		result[k] = lhs[k] + rhs[k];
 	}
 
-	void print(std::ostream& out) const {
-		s1.print(out);
-		s2.print(out);
-	}
-};
-
-template <typename S>
-struct Wrap : public S {
-	using S::S;
-	Wrap(const S& s) : S(s) {}
-};
-
-using string = Wrap<SmartString>;
-
-template<typename S1, typename S2>
-Wrap<ConcatString<S1,S2>>
-operator+(Wrap<S1> const& lhs, Wrap<S2> const& rhs) {
-	S1 const& left{ lhs };
-	S2 const& right{ rhs };
-	ConcatString<S1, S2> result{ left, right };
-
-	Wrap<ConcatString<S1, S2>> wrapped_result{ result };
-
-	return wrapped_result;
-}
-
-
-class CStringWrapper {
-	const char* ptr;
-public:
-	CStringWrapper(const char* ptr) { this->ptr = ptr; }
-	char operator[](uint64_t k) const { return ptr[k]; }
-	uint64_t size(void) const { return strlen(ptr); }
-	void print(std::ostream& out) const {
-		out << ptr;
-	}
-};
-
-template <typename S>
-Wrap<ConcatString<CStringWrapper, S>>
-operator+(const char* left, Wrap<S> const& right) {
-	return Wrap<ConcatString<CStringWrapper, S>>{CStringWrapper{ left }, right};
-}
-
-template <typename S>
-Wrap<ConcatString<S, CStringWrapper>>
-operator+(Wrap<S> const& left, const char* right) {
-	return Wrap<ConcatString<S, CStringWrapper>>{left, CStringWrapper{ right }};
+	return result;
 }
 
 template <typename T>
-std::ostream& operator<<(std::ostream& out, Wrap<T> const& str) {
-	str.print(out);
+valarray<T> operator-(valarray<T> const& lhs, valarray<T> const& rhs) {
+	uint64_t size = std::min(lhs.size(), rhs.size());
+	valarray<T> result(size);
+
+	for (uint64_t k = 0; k < size; k += 1) {
+		result[k] = lhs[k] - rhs[k];
+	}
+
+	return result;
+}
+
+template <typename T>
+std::ostream& operator<<(std::ostream& out, const valarray<T>&  vec) {
+	const char* pref = "";
+	for (const auto& val : vec) {
+		out << pref << val;
+		pref = ", ";
+	}
 	return out;
 }
 
+int main1(void) {
+	valarray<int> x{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 };
+	valarray<int> y{ 2, 4, 6, 8, 10 };
+	cout << "x: " << x << endl;
+	cout << "y: " << y << endl;
+	cout << "x + y: " << x + y << endl;
+	x += y;
+	cout << "x: " << x << endl;
 
-/* --- client code here --- */
-
-int main(void) {
-	string first = "Craig";
-	string last = "Chase";
-	string greeting = "Hello ";
-	cout << ((greeting + first) + last) << endl;
-	cout << ("Hello " + first) + " " + last << endl;
+	return 0; 
 }
+
+/* critiques:
+ * 1) OK, the += operator is horribly innefficient. Note that by dispatching to the 
+ * operator+ function we have to create a temporary (the local variable "result" in
+ * the operator+ function). That temporary is contructed, assigned to, returned, and then
+ * stupidly read from during the assignment operator.
+ *   Construction of result: allocate space potentially assign all elements to zero
+ *   Assignment to result: perform N adds, 2N reads and N writes
+ *   Returning result and binding result to operator= rhs: free (returned by reference, passed by reference)
+ *   operator=: perform N reads and N writes to copy lhs[k] = rhs[k] 
+ *   Destructor for result (performed after op= returns): deallocate memory
+ * We could trivially have written the += function to perform only 2N reads and N writes
+ * with no allocations
+ *
+ * The duplicated code between operator+ and operator- is annoying. In fact, I had an error 
+ * in my first version where I declared result using the {} syntax:
+ *     valarray<T> result{size};
+ * which doesn't work when T is an int, because {size} looks like a initializer_list<int>
+ * because I'd duplicated the code, I had to fix this same stupid bug twice.
+ */
+
