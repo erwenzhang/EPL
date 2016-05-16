@@ -1,3 +1,10 @@
+#include<iostream>
+#include <typeinfo>
+#include<vector>
+#include<list>
+#define prob14
+
+
 #ifdef prob11//2010 midterm 1
 using std::cout;
 template<typename It>
@@ -72,4 +79,27 @@ int main(void){
 	getchar();
 }
 
+#endif
+
+#ifdef prob14//2010 midterm 6
+using std::cout;
+template<typename Op,typename T>
+class Proxy{
+	Op op;
+	T val;
+public:
+	Proxy(Op _op, T _val) :op(_op), val(_val){}
+	T operator()(const T& rhs){ return op(val, rhs); }
+
+};
+template<typename Op,typename T>
+Proxy<Op,T> curry(Op op, T val){
+	return Proxy<Op,T>{op, val};
+}
+int main(void){
+	cout<<curry(std::multiplies<int>(), 4)(2);
+
+	getchar();
+
+}
 #endif
